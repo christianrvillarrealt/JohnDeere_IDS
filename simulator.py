@@ -1,7 +1,8 @@
 from tkinter import *
 from tkinter import scrolledtext
 from tkinter import ttk
-
+from tkinter import filedialog
+import csv
 from math import pi
 import time
 
@@ -69,7 +70,7 @@ class App:
 
         ttk.Separator(self.buttons_frame, orient=VERTICAL).grid(column=5, row=0, rowspan=2, sticky='ns')
 
-        self.btn_File = Button(self.buttons_frame, text='load csv')
+        self.btn_File = Button(self.buttons_frame, text='load csv', command = self.loadCSV)
         self.btn_File.grid(row=0, column=6, padx=10, pady=10, rowspan=2)
 
         self.group1 = LabelFrame(self.master_window, text="graph", padx=5, pady=5)
@@ -134,7 +135,7 @@ class App:
         self.thread.start()
 
     def save_csv(self, omega_range, radius_range, rpm_range):
-        names = ["angular velocity", "radius", "transmission ratio", "rpm"]
+        names = ["angular velocity", "radius", "rpm", "transmission ratio"]
 
         ratio_range = [100] * self.step_size
 
@@ -153,6 +154,30 @@ class App:
 
             self.canvas.draw()
             time.sleep(0.1)
+    
+    # Function to read the csv and return all data from each column
+    def read_csv(self, file_path):
+        with open(file_path, 'r', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            header = next(reader)  
+            columns = {col: [] for col in header} 
+            for row in reader:
+                for col, value in zip(header, row):
+                    columns[col].append(float(value)) 
+        return columns
+    
+    # Function to load a csv prompting for a file opener window and graphing it
+    def loadCSV(self):
+        file_path = filedialog.askopenfilename()
+        
+        columns = self.read_csv(file_path)
+        
+        self.thread = threading.Thread(
+            target=self.animate,
+            args=(columns["angular velocity"], columns["radius"], columns["rpm"])
+        )
+
+        self.thread.start()
 
 
 if __name__ == "__main__":
