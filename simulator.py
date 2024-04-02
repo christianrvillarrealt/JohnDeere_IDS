@@ -12,13 +12,7 @@ import matplotlib.image as image
 matplotlib.use("TkAgg")
 
 from matplotlib.figure import Figure
-
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-
-try:
-    from matplotlib.backends.backend_tkagg import NavigationToolbar2TkAgg
-except ImportError:
-    from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk as NavigationToolbar2TkAgg
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 
 import threading
 
@@ -27,8 +21,6 @@ class App:
         self.step_size = 100
         self.x_axis = list(range(self.step_size))
         self.ratio = 10
-
-        self.file_name = 'out.csv'
 
         self.master = master
         self.master.title("engine simulator")
@@ -46,7 +38,7 @@ class App:
         self.lbl_angular_min = Label(self.buttons_frame, text='(angular) from: ')
         self.lbl_angular_min.grid(row=0, column=1, padx=10, pady=10)
         self.angular_min = Entry(self.buttons_frame, width=10)
-        self.angular_min.insert(0, "1") 
+        self.angular_min.insert(0, "0") 
         self.angular_min.grid(row=0, column=2, padx=10, pady=10)
 
 
@@ -121,10 +113,32 @@ class App:
         if radius_max is None:
             return
 
-        omega_range = self.generate_range(angular_min, angular_max)        
-        radius_range = self.generate_range(radius_min, radius_max)
+        f = filedialog.asksaveasfile(
+            initialfile = 'data.csv',
+            defaultextension=".csv",
+            filetypes=[ ("All Files","*.*"), ("CSV Files","*.csv") ]
+        )
+
+        if f is None:
+            return
+
+        omega_range = []
+        if angular_min < angular_max:
+            omega_range = self.generate_range(angular_min, angular_max)
+        else:
+            omega_range = self.generate_range(angular_max, angular_min)
+            omega_range = omega_range[::-1]
+
+        radius_range = []
+        if radius_min < radius_max:
+            radius_range = self.generate_range(radius_min, radius_max)
+        else:
+            radius_range = self.generate_range(radius_max, radius_min)
+            radius_range = radius_range[::-1]
+
         rpm_range = [self.rpm(omega, radius, self.ratio) for omega, radius in zip(omega_range, radius_range)]
 
+        self.filename = f.name
         self.save_csv(omega_range, radius_range, rpm_range)
 
         self.thread = threading.Thread(
@@ -141,7 +155,7 @@ class App:
 
         df = pd.DataFrame(list(zip(omega_range, radius_range, rpm_range, ratio_range)), columns=names)
 
-        df.to_csv(self.file_name, index=False)
+        df.to_csv(self.filename, index=False)
 
     def animate(self, omega_range, radius_range, rpm_range):
         for i in range(self.step_size):
