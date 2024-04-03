@@ -202,13 +202,13 @@ class App:
     def save_csv(self, omega_range, radius_range, rpm_range):
 
         # the column names for the csv file
-        names = ["angular velocity", "radius", "rpm", "transmission ratio"]
+        names = ["angular velocity", "radius", "transmission ratio", "rpm"]
 
         # create a list of step_size with 100, to be used as the transmission ratio
         ratio_range = [self.ratio] * self.step_size
 
         # create the dataframe
-        df = pd.DataFrame(list(zip(omega_range, radius_range, rpm_range, ratio_range)), columns=names)
+        df = pd.DataFrame(list(zip(omega_range, radius_range, ratio_range, rpm_range)), columns=names)
 
         # save the dataframe to a csv file
         df.to_csv(self.filename, index=False)
