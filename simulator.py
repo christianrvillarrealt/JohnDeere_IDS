@@ -96,29 +96,68 @@ class App:
         self.btn_File = Button(self.buttons_frame, text='load csv', command = self.load_csv)
         self.btn_File.grid(row=0, column=6, padx=10, pady=10, rowspan=2)
 
-        # frame containing the graph
-        self.group1 = LabelFrame(self.master_window, text="graph", padx=5, pady=5)
+        # frame containing the graph for the rpm
+        self.group1 = LabelFrame(self.master_window, text="RPM", padx=5, pady=5)
         self.group1.grid(row=1, column=0, columnspan=3, padx=10, pady=10, sticky=E+W+N+S)
+
+        self.group2 = LabelFrame(self.master_window, text = "Radius", padx = 5, pady = 5)
+        self.group2.grid(row=2, column=0, columnspan=3, padx=10, pady=10, sticky=E+W+N+S)
+
+        self.group3 = LabelFrame(self.master_window, text = "Transmission", padx = 5, pady = 5)
+        self.group3.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky=E+W+N+S)
+
+        self.group4 = LabelFrame(self.master_window, text = "Angular Velocity", padx = 5, pady = 5)
+        self.group4.grid(row=4, column=0, columnspan=3, padx=10, pady=10, sticky=E+W+N+S)
+
 
         # GUI stuff
         self.master_window.columnconfigure(0, weight=1)
         self.master_window.rowconfigure(1, weight=1)
+        
         self.group1.rowconfigure(0, weight=1)
         self.group1.columnconfigure(0, weight=1)
+        self.group2.rowconfigure(0, weight=1)
+        self.group2.columnconfigure(0, weight=1)
+        self.group3.rowconfigure(0, weight=1)
+        self.group3.columnconfigure(0, weight=1)
+        self.group4.rowconfigure(0, weight=1)
+        self.group4.columnconfigure(0, weight=1)
 
-        # create the graph
-        f = Figure(figsize=(5,5), dpi=100)
-        self.a = f.add_subplot(111)
+        # create the graphs
+        f1 = Figure(figsize=(1,1), dpi=100)
+        self.a = f1.add_subplot(111)
+        
+        f2 = Figure(figsize=(1,1), dpi = 100)
+        self.b = f2.add_subplot(111)
+
+        f3 = Figure(figsize=(1,1), dpi = 100)
+        self.c = f3.add_subplot(111)
+
+        f4 = Figure(figsize=(1,1), dpi = 100)
+        self.d = f4.add_subplot(111)
         
         # add the legend to the graph
-        self.a.legend(["angular velocity", "radius", "RPM"])
+        self.a.legend(["RPM"])
+        self.b.legend(["Radius"])
+        self.c.legend(["Transmission"])
+        self.d.legend(["Angular Velocity"])
 
-        self.canvas = FigureCanvasTkAgg(f, self.group1)
-        self.canvas.get_tk_widget().grid(row=0, column=0, sticky=E+W+N+S)
+        self.canvas1 = FigureCanvasTkAgg(f1, self.group1)
+        self.canvas2 = FigureCanvasTkAgg(f2, self.group2)
+        self.canvas3 = FigureCanvasTkAgg(f3, self.group3)
+        self.canvas4 = FigureCanvasTkAgg(f4, self.group4)
+        
+        self.canvas1.get_tk_widget().grid(row=0, column=0, sticky=E+W+N+S)
+        self.canvas2.get_tk_widget().grid(row=0, column=0, sticky=E+W+N+S)
+        self.canvas3.get_tk_widget().grid(row=0, column=0, sticky=E+W+N+S)
+        self.canvas4.get_tk_widget().grid(row=0, column=0, sticky=E+W+N+S)
 
     # function to calculate the RPM
     def rpm(self, omega, radius, ratio):
-        return (omega * 60) / (2 * pi * radius * ratio)
+        try:
+            return (omega * 60) / (2 * pi * radius * ratio)
+        except:
+            return 0
     
     # function to generate the range of values
     # it takes the min and max values and returns a list of 100 elements
@@ -184,28 +223,29 @@ class App:
             radius_range = self.generate_range(radius_max, radius_min)
             radius_range = radius_range[::-1]
 
+        ratio_range = []
+        for i in range(self.step_size):
+            ratio_range.append(int(i/20))
+        
         # calculate the RPM
-        rpm_range = [self.rpm(omega, radius, self.ratio) for omega, radius in zip(omega_range, radius_range)]
+        rpm_range = [self.rpm(omega, radius, ratio_range) for omega, radius, ratio_range in zip(omega_range, radius_range, ratio_range)]
 
         # save the data to the csv file
         self.filename = f.name
-        self.save_csv(omega_range, radius_range, rpm_range)
+        self.save_csv(omega_range, radius_range, rpm_range, ratio_range)
 
         # run the animation
         self.thread = threading.Thread(
             target=self.animate,
-            args=(omega_range, radius_range, rpm_range)
+            args=(omega_range, radius_range, rpm_range, ratio_range)
         )
         self.thread.start()
 
     # function to save the lists into a dataframe and then to a csv file
-    def save_csv(self, omega_range, radius_range, rpm_range):
+    def save_csv(self, omega_range, radius_range, rpm_range, ratio_range):
 
         # the column names for the csv file
         names = ["angular velocity", "radius", "transmission ratio", "rpm"]
-
-        # create a list of step_size with 100, to be used as the transmission ratio
-        ratio_range = [self.ratio] * self.step_size
 
         # create the dataframe
         df = pd.DataFrame(list(zip(omega_range, radius_range, ratio_range, rpm_range)), columns=names)
@@ -214,22 +254,33 @@ class App:
         df.to_csv(self.filename, index=False)
 
     # function to animate the graph
-    def animate(self, omega_range, radius_range, rpm_range):
+    def animate(self, omega_range, radius_range, rpm_range, ratio_range):
 
         # iterate over the range of values and plot them
         for i in range(self.step_size):
             self.a.clear() # we first clear the graph
-
+            self.d.clear()
+            self.c.clear()
+            self.b.clear()
+            
             # plot the 3 lines
-            self.a.plot(self.x_axis[:i], omega_range[:i])
-            self.a.plot(self.x_axis[:i], radius_range[:i])
+            self.d.plot(self.x_axis[:i], omega_range[:i])
+            self.b.plot(self.x_axis[:i], radius_range[:i])
+            self.c.plot(self.x_axis[:i], ratio_range[:i])
             self.a.plot(self.x_axis[:i], rpm_range[:i])
 
             # add the legend
-            self.a.legend(["angular velocity", "radius", "RPM"])
+            self.a.legend(["RPM"])
+            self.b.legend(["Radius"])
+            self.c.legend(["Transmission"])
+            self.d.legend(["Angular Velocity"])
+
 
             # draw the graph
-            self.canvas.draw()
+            self.canvas1.draw()
+            self.canvas2.draw()
+            self.canvas3.draw()
+            self.canvas4.draw()
             time.sleep(0.1)
     
     # function to read the csv and return all data from each column as a dictionary
@@ -251,7 +302,7 @@ class App:
         
         self.thread = threading.Thread(
             target=self.animate,
-            args=(columns["angular velocity"], columns["radius"], columns["rpm"])
+            args=(columns["angular velocity"], columns["radius"], columns["rpm"], columns["transmission ratio"])
         )
 
         self.thread.start()
