@@ -1,119 +1,80 @@
-###############################################################################
-## Entregable de reto 1. Visualización gráfica de comportamiento del tractor ##
-###############################################################################
-
-# Christian Raúl Villarreal Treviño A01285465
-# Rodrigo Jose Monterroso Bandy     A00837948
-# Alejandro Rodríguez del Bosque    A01722329
-# Eduardo Hernandez Valdez          A01285233
-
-# GUI library
 from tkinter import *
-from tkinter import scrolledtext
 from tkinter import ttk
 from tkinter import filedialog
-
-# library to read csv files
 import csv
-
-# import the pi value
-from math import pi
-
-# library for generating delays
 import time
-
-# library for data manipulation
 import pandas as pd
-
-# library for plotting
 import matplotlib
 import matplotlib.image as image
 matplotlib.use("TkAgg")
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
-
-# library for creating threads
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+import serial
+import struct
 import threading
 
-# main class having all the GUI and the functions
 class App:
     def __init__(self, master):
-
-        # total number of steps
         self.step_size = 100
-
-        # list of 100 elements from 0 to 99 (used for the x axis)
         self.x_axis = list(range(self.step_size))
-        
-        # engine ratio
         self.ratio = 10
 
-        # GUI stuff
         self.master = master
         self.master.title("engine simulator")
         self.master.geometry("620x400")
         self.master.configure(bg="green")
         self.master_window = master
 
-        # top frame that has the inoput fields and buttons
         self.buttons_frame = Frame(self.master_window)
-        self.buttons_frame.grid(row=0, column=0, sticky=W+E)    
+        self.buttons_frame.grid(row=0, column=0, sticky=W+E)
 
-        # button that starts the data generation
-        self.btn_Image = Button(self.buttons_frame, text='generate data', command=self.generate_data)
+        self.btn_Image = Button(self.buttons_frame, text='Start Serial Reception', command=self.start_serial_reception)
         self.btn_Image.grid(row=0, column=0, padx=10, pady=10, rowspan=2)
 
-        # input fields for the angular velocity
         self.lbl_angular_min = Label(self.buttons_frame, text='(angular) from: ')
         self.lbl_angular_min.grid(row=0, column=1, padx=10, pady=10)
         self.angular_min = Entry(self.buttons_frame, width=10)
-        self.angular_min.insert(0, "0") 
+        self.angular_min.insert(0, "0")
         self.angular_min.grid(row=0, column=2, padx=10, pady=10)
 
         self.lbl_angular_min = Label(self.buttons_frame, text='to: ')
         self.lbl_angular_min.grid(row=0, column=3, padx=10, pady=10)
         self.angular_max = Entry(self.buttons_frame, width=10)
-        self.angular_max.insert(0, "10") 
+        self.angular_max.insert(0, "10")
         self.angular_max.grid(row=0, column=4, padx=10, pady=10)
 
-        # input fields for the radius
         self.lbl_angular_min = Label(self.buttons_frame, text='(radius) from:')
         self.lbl_angular_min.grid(row=1, column=1, padx=10, pady=10)
         self.radius_min = Entry(self.buttons_frame, width=10)
-        self.radius_min.insert(0, "0.1") 
+        self.radius_min.insert(0, "0.1")
         self.radius_min.grid(row=1, column=2, padx=10, pady=10)
 
         self.lbl_angular_min = Label(self.buttons_frame, text='to:')
         self.lbl_angular_min.grid(row=1, column=3, padx=10, pady=10)
         self.radius_max = Entry(self.buttons_frame, width=10)
-        self.radius_max.insert(0, "0.8") 
+        self.radius_max.insert(0, "0.8")
         self.radius_max.grid(row=1, column=4, padx=10, pady=10)
 
-        # gui separator (vertical line)
         ttk.Separator(self.buttons_frame, orient=VERTICAL).grid(column=5, row=0, rowspan=2, sticky='ns')
 
-        # button that loads a csv file and animate it
-        self.btn_File = Button(self.buttons_frame, text='load csv', command = self.load_csv)
+        self.btn_File = Button(self.buttons_frame, text='Load CSV', command=self.load_csv)
         self.btn_File.grid(row=0, column=6, padx=10, pady=10, rowspan=2)
 
-        # frame containing the graph for the rpm
         self.group1 = LabelFrame(self.master_window, text="RPM", padx=5, pady=5)
         self.group1.grid(row=1, column=0, columnspan=3, padx=10, pady=10, sticky=E+W+N+S)
 
-        self.group2 = LabelFrame(self.master_window, text = "Radius", padx = 5, pady = 5)
+        self.group2 = LabelFrame(self.master_window, text="Radius", padx=5, pady=5)
         self.group2.grid(row=2, column=0, columnspan=3, padx=10, pady=10, sticky=E+W+N+S)
 
-        self.group3 = LabelFrame(self.master_window, text = "Transmission", padx = 5, pady = 5)
+        self.group3 = LabelFrame(self.master_window, text="Transmission", padx=5, pady=5)
         self.group3.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky=E+W+N+S)
 
-        self.group4 = LabelFrame(self.master_window, text = "Angular Velocity", padx = 5, pady = 5)
+        self.group4 = LabelFrame(self.master_window, text="Angular Velocity", padx=5, pady=5)
         self.group4.grid(row=4, column=0, columnspan=3, padx=10, pady=10, sticky=E+W+N+S)
 
-
-        # GUI stuff
         self.master_window.columnconfigure(0, weight=1)
         self.master_window.rowconfigure(1, weight=1)
-        
+
         self.group1.rowconfigure(0, weight=1)
         self.group1.columnconfigure(0, weight=1)
         self.group2.rowconfigure(0, weight=1)
@@ -123,20 +84,18 @@ class App:
         self.group4.rowconfigure(0, weight=1)
         self.group4.columnconfigure(0, weight=1)
 
-        # create the graphs
         f1 = Figure(figsize=(1,1), dpi=100)
         self.a = f1.add_subplot(111)
-        
-        f2 = Figure(figsize=(1,1), dpi = 100)
+
+        f2 = Figure(figsize=(1,1), dpi=100)
         self.b = f2.add_subplot(111)
 
-        f3 = Figure(figsize=(1,1), dpi = 100)
+        f3 = Figure(figsize=(1,1), dpi=100)
         self.c = f3.add_subplot(111)
 
-        f4 = Figure(figsize=(1,1), dpi = 100)
+        f4 = Figure(figsize=(1,1), dpi=100)
         self.d = f4.add_subplot(111)
-        
-        # add the legend to the graph
+
         self.a.legend(["RPM"])
         self.b.legend(["Radius"])
         self.c.legend(["Transmission"])
@@ -146,21 +105,39 @@ class App:
         self.canvas2 = FigureCanvasTkAgg(f2, self.group2)
         self.canvas3 = FigureCanvasTkAgg(f3, self.group3)
         self.canvas4 = FigureCanvasTkAgg(f4, self.group4)
-        
+
         self.canvas1.get_tk_widget().grid(row=0, column=0, sticky=E+W+N+S)
         self.canvas2.get_tk_widget().grid(row=0, column=0, sticky=E+W+N+S)
         self.canvas3.get_tk_widget().grid(row=0, column=0, sticky=E+W+N+S)
         self.canvas4.get_tk_widget().grid(row=0, column=0, sticky=E+W+N+S)
 
-    # function to calculate the RPM
+        self.receiver = None  # Initialize the receiver attribute
+
+        self.csv_filename = "data.csv"
+        self.create_csv()
+
+        self.update_plot()
+
+    def create_csv(self):
+        with open(self.csv_filename, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["angular_velocity", "radius", "transmission_ratio", "rpm"])
+
+    def start_serial_reception(self):
+        if self.receiver is not None:
+            print("Stopping existing receiver.")
+            self.receiver.stop()
+            self.receiver = None
+
+        print("Starting new receiver.")
+        self.receiver = SerialDataReceiver('COM3', 9600, self)
+
     def rpm(self, omega, radius, ratio):
         try:
             return (omega * 60) / (2 * pi * radius * ratio)
         except:
             return 0
-    
-    # function to generate the range of values
-    # it takes the min and max values and returns a list of 100 elements
+
     def generate_range(self, min, max):
         quantity = abs(max - min)
         steps = quantity / (self.step_size-1)
@@ -174,141 +151,164 @@ class App:
 
         return range
 
-    # function to generate the data
-    # takes the values from the input fields
-    # calculates the RPM with each iteration of the value
-    # saves the data to a csv file
-    # and runs the animation
-    def generate_data(self):
+    def save_csv(self, omega, radius, transmission, rpm):
+        with open(self.csv_filename, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([omega, radius, transmission, rpm])
 
-        # get the values from the input fields
-        angular_min = float(self.angular_min.get())
-        angular_max = float(self.angular_max.get())
-        radius_min = float(self.radius_min.get())
-        radius_max = float(self.radius_max.get())
+    def update_plot(self):
+        try:
+            columns = self.read_csv(self.csv_filename)
 
-        # if any of these is empty, return
-        if angular_min is None:
-            return
-        if angular_max is None:
-            return
-        if radius_min is None:
-            return
-        if radius_max is None:
-            return
+            if len(columns["angular_velocity"]) > 0:
+                self.animate(columns["angular_velocity"], columns["radius"], columns["rpm"], columns["transmission_ratio"])
+        except Exception as e:
+            print(f"Error updating plot: {e}")
 
-        # get the filename for the potential savefile
-        f = filedialog.asksaveasfile(
-            initialfile = 'data.csv',
-            defaultextension=".csv",
-            filetypes=[ ("All Files","*.*"), ("CSV Files","*.csv") ]
-        )
+        self.master.after(1000, self.update_plot)
 
-        # if we dont have a file, return
-        if f is None:
-            return
-
-        # generate the ranges, swap them if needed
-        omega_range = []
-        if angular_min < angular_max:
-            omega_range = self.generate_range(angular_min, angular_max)
-        else:
-            omega_range = self.generate_range(angular_max, angular_min)
-            omega_range = omega_range[::-1]
-
-        radius_range = []
-        if radius_min < radius_max:
-            radius_range = self.generate_range(radius_min, radius_max)
-        else:
-            radius_range = self.generate_range(radius_max, radius_min)
-            radius_range = radius_range[::-1]
-
-        ratio_range = []
-        for i in range(self.step_size):
-            ratio_range.append(int(i/20))
-        
-        # calculate the RPM
-        rpm_range = [self.rpm(omega, radius, ratio_range) for omega, radius, ratio_range in zip(omega_range, radius_range, ratio_range)]
-
-        # save the data to the csv file
-        self.filename = f.name
-        self.save_csv(omega_range, radius_range, rpm_range, ratio_range)
-
-        # run the animation
-        self.thread = threading.Thread(
-            target=self.animate,
-            args=(omega_range, radius_range, rpm_range, ratio_range)
-        )
-        self.thread.start()
-
-    # function to save the lists into a dataframe and then to a csv file
-    def save_csv(self, omega_range, radius_range, rpm_range, ratio_range):
-
-        # the column names for the csv file
-        names = ["angular velocity", "radius", "transmission ratio", "rpm"]
-
-        # create the dataframe
-        df = pd.DataFrame(list(zip(omega_range, radius_range, ratio_range, rpm_range)), columns=names)
-
-        # save the dataframe to a csv file
-        df.to_csv(self.filename, index=False)
-
-    # function to animate the graph
     def animate(self, omega_range, radius_range, rpm_range, ratio_range):
+        self.a.clear()
+        self.d.clear()
+        self.c.clear()
+        self.b.clear()
 
-        # iterate over the range of values and plot them
-        for i in range(self.step_size):
-            self.a.clear() # we first clear the graph
-            self.d.clear()
-            self.c.clear()
-            self.b.clear()
-            
-            # plot the 3 lines
-            self.d.plot(self.x_axis[:i], omega_range[:i])
-            self.b.plot(self.x_axis[:i], radius_range[:i])
-            self.c.plot(self.x_axis[:i], ratio_range[:i])
-            self.a.plot(self.x_axis[:i], rpm_range[:i])
+        # Plot the data
+        self.d.plot(range(len(omega_range)), omega_range, label="Angular Velocity", marker='o')
+        self.b.plot(range(len(radius_range)), radius_range, label="Radius", marker='o')
+        self.c.plot(range(len(ratio_range)), ratio_range, label="Transmission", marker='o')
+        self.a.plot(range(len(rpm_range)), rpm_range, label="RPM", marker='o')
 
-            # add the legend
-            self.a.legend(["RPM"])
-            self.b.legend(["Radius"])
-            self.c.legend(["Transmission"])
-            self.d.legend(["Angular Velocity"])
+        # Set axis limits dynamically
+        if len(rpm_range) > 0:
+            self.a.set_xlim(0, len(rpm_range))
+            y_min = min(rpm_range)
+            y_max = max(rpm_range)
+            if y_min == y_max:
+                y_min -= 1
+                y_max += 1
+            self.a.set_ylim(y_min, y_max)
 
+        if len(radius_range) > 0:
+            self.b.set_xlim(0, len(radius_range))
+            y_min = min(radius_range)
+            y_max = max(radius_range)
+            if y_min == y_max:
+                y_min -= 1
+                y_max += 1
+            self.b.set_ylim(y_min, y_max)
 
-            # draw the graph
-            self.canvas1.draw()
-            self.canvas2.draw()
-            self.canvas3.draw()
-            self.canvas4.draw()
-            time.sleep(0.1)
-    
-    # function to read the csv and return all data from each column as a dictionary
+        if len(ratio_range) > 0:
+            self.c.set_xlim(0, len(ratio_range))
+            y_min = min(ratio_range)
+            y_max = max(ratio_range)
+            if y_min == y_max:
+                y_min -= 1
+                y_max += 1
+            self.c.set_ylim(y_min, y_max)
+
+        if len(omega_range) > 0:
+            self.d.set_xlim(0, len(omega_range))
+            y_min = min(omega_range)
+            y_max = max(omega_range)
+            if y_min == y_max:
+                y_min -= 1
+                y_max += 1
+            self.d.set_ylim(y_min, y_max)
+
+        # Add legends
+        self.a.legend()
+        self.b.legend()
+        self.c.legend()
+        self.d.legend()
+
+        # Draw the canvas
+        self.canvas1.draw()
+        self.canvas2.draw()
+        self.canvas3.draw()
+        self.canvas4.draw()
+
     def read_csv(self, file_path):
         with open(file_path, 'r', newline='') as csvfile:
             reader = csv.reader(csvfile)
-            header = next(reader)  
-            columns = {col: [] for col in header} 
+            header = next(reader)
+            columns = {col: [] for col in header}
             for row in reader:
                 for col, value in zip(header, row):
-                    columns[col].append(float(value)) 
+                    columns[col].append(float(value))
         return columns
-    
-    # function to load a csv prompting for a file opener window and graphing it
+
     def load_csv(self):
         file_path = filedialog.askopenfilename()
-        
         columns = self.read_csv(file_path)
-        
-        self.thread = threading.Thread(
-            target=self.animate,
-            args=(columns["angular velocity"], columns["radius"], columns["rpm"], columns["transmission ratio"])
-        )
+        self.animate(columns["angular_velocity"], columns["radius"], columns["rpm"], columns["transmission_ratio"])
 
-        self.thread.start()
+class SerialDataReceiver:
+    def __init__(self, port, baud_rate, app):
+        self.ser = None
+        try:
+            self.ser = serial.Serial(port, baud_rate)
+            self.app = app
+            self.running = True
 
+            # Initialize variables
+            self.omega = None
+            self.radius = None
+            self.rpm = None
+            self.transmission = None
+
+            threading.Thread(target=self.read_serial_data).start()
+        except serial.SerialException as e:
+            print(f"Failed to open serial port {port}: {e}")
+            self.running = False
+        self.receiver = None
+
+    def read_serial_data(self):
+        while self.running and self.ser:
+            try:
+                data = self.ser.read(1)
+                if data == b'\xff':
+                    type_byte = self.ser.read(1)
+                    if type_byte:
+                        type_value = struct.unpack('B', type_byte)[0]
+                        value_byte = self.ser.read(1)
+                        if value_byte:
+                            value = struct.unpack('B', value_byte)[0]
+                            if type_value >= 0x80:
+                                self.omega = value
+                                print(f"Received Angular Velocity: {value}")
+                            elif type_value >= 0x40:
+                                self.radius = value
+                                print(f"Received Radius: {value}")
+                            elif type_value >= 0x20:
+                                self.rpm = value
+                                print(f"Received RPM: {value}")
+                            elif type_value >= 0x10:
+                                self.transmission = value
+                                print(f"Received Transmission Ratio: {value}")
+
+                            if self.omega is not None and self.radius is not None and self.rpm is not None and self.transmission is not None:
+                                self.app.save_csv(self.omega, self.radius, self.transmission, self.rpm)
+                                # Reset variables
+                                self.omega = self.radius = self.rpm = self.transmission = None
+
+            except serial.SerialException as e:
+                print(f"Serial port error: {e}")
+                self.stop()
+
+    def stop(self):
+        if self.running and self.ser:
+            self.running = False
+            try:
+                print("Closing serial port.")
+                self.ser.close()
+            except serial.SerialException as e:
+                print(f"Error closing serial port: {e}")
+            self.ser = None
 
 if __name__ == "__main__":
     root = Tk()
     app = App(root)
     root.mainloop()
+    if app.receiver:
+        app.receiver.stop()
